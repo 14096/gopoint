@@ -21,6 +21,8 @@ import (
 	"github.com/14096/gopoint/graph/search"
 	"github.com/14096/gopoint/graph/sharing"
 	"github.com/14096/gopoint/graph/sites"
+	"github.com/14096/gopoint/graph/subscriptions"
+	"github.com/14096/gopoint/graph/termstore"
 	"github.com/14096/gopoint/graph/users"
 	"github.com/14096/gopoint/httpx"
 )
@@ -114,3 +116,9 @@ func (c *Client) Search() *search.Service { return search.New(c.raw) }
 
 // Sharing returns the sharing service.
 func (c *Client) Sharing() *sharing.Service { return sharing.New(c.raw) }
+
+// Subscriptions returns the change notification subscriptions service.
+func (c *Client) Subscriptions() *subscriptions.Service { return subscriptions.New(c.raw) }
+
+// TermStore returns the term store service.
+func (c *Client) TermStore() *termstore.Service { return termstore.New(c.raw) }

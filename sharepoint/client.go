@@ -29,6 +29,7 @@ import (
 	"github.com/14096/gopoint/sharepoint/users"
 	"github.com/14096/gopoint/sharepoint/views"
 	"github.com/14096/gopoint/sharepoint/web"
+	"github.com/14096/gopoint/sharepoint/webhooks"
 )
 
 // Options tune the client; all fields are optional.
@@ -134,6 +135,9 @@ func (c *Client) Views() *views.Service { return views.New(c.raw) }
 
 // HubSites returns the hub sites service.
 func (c *Client) HubSites() *hubsites.Service { return hubsites.New(c.raw) }
+
+// Webhooks returns the list webhooks service.
+func (c *Client) Webhooks() *webhooks.Service { return webhooks.New(c.raw, c.siteURL) }
 
 type digestCache struct {
 	mu      sync.Mutex

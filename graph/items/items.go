@@ -81,3 +81,14 @@ func (s *Service) Delete(ctx context.Context, site, list, id string) error {
 	_, err := s.c.Do(ctx, httpx.NewRequest("DELETE", base(site, list)+"/"+url.PathEscape(id)))
 	return err
 }
+
+// Delta returns the list items changed since deltaLink and the new link to
+// store. With an empty deltaLink it enumerates the whole list and returns the
+// first link.
+func (s *Service) Delta(ctx context.Context, site, list, deltaLink string) ([]Item, string, error) {
+	path := deltaLink
+	if path == "" {
+		path = base(site, list) + "/delta"
+	}
+	return httpx.Delta[Item](ctx, s.c, httpx.NewRequest("GET", path))
+}

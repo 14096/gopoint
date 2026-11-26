@@ -43,13 +43,27 @@ type Config struct {
 	// MinBackoff/MaxBackoff bound the exponential backoff (default 500ms/30s).
 	MinBackoff time.Duration
 	MaxBackoff time.Duration
+	// ShouldRetry overrides the default retry decision (429/503/504 and
+	// transient network errors on idempotent methods). It receives the
+	// default decision; resp is nil when err is set. MaxAttempts still applies.
+	ShouldRetry func(req *Request, resp *Response, err error, def bool) bool
+	// Middleware wraps Do, outermost first. It sees the whole call, retries
+	// included; use a custom HTTPClient.Transport for per-attempt hooks.
+	Middleware []Middleware
 }
+
+// DoFunc is the signature of Client.Do.
+type DoFunc func(ctx context.Context, req *Request) (*Response, error)
+
+// Middleware decorates a DoFunc, e.g. for metrics, tracing or custom logging.
+type Middleware func(next DoFunc) DoFunc
 
 // Client is the generic REST client.
 type Client struct {
 	cfg   Config
 	base  *url.URL
 	sleep func(context.Context, time.Duration) error
+	do    DoFunc
 }
 
 var _ Doer = (*Client)(nil)
@@ -82,7 +96,12 @@ func New(cfg Config) (*Client, error) {
 		}
 		cfg.Header.Set("Accept", "application/json")
 	}
-	return &Client{cfg: cfg, base: base, sleep: sleepCtx}, nil
+	c := &Client{cfg: cfg, base: base, sleep: sleepCtx}
+	c.do = c.send
+	for i := len(cfg.Middleware) - 1; i >= 0; i-- {
+		c.do = cfg.Middleware[i](c.do)
+	}
+	return c, nil
 }
 
 // BaseURL returns the configured base URL.
@@ -134,8 +153,12 @@ func encodeQuery(q url.Values) string {
 
 var queryUnescaper = strings.NewReplacer("%24", "$", "%2C", ",")
 
-// Do sends the request, applying auth, retries and error mapping.
+// Do sends the request, applying middleware, auth, retries and error mapping.
 func (c *Client) Do(ctx context.Context, req *Request) (*Response, error) {
+	return c.do(ctx, req)
+}
+
+func (c *Client) send(ctx context.Context, req *Request) (*Response, error) {
 	if req.err != nil {
 		return nil, req.err
 	}
@@ -151,18 +174,23 @@ func (c *Client) Do(ctx context.Context, req *Request) (*Response, error) {
 		switch {
 		case err != nil:
 			var ne net.Error
-			if ctx.Err() == nil && errors.As(err, &ne) && idempotent(req.Method) {
-				retry = true
-			}
+			retry = ctx.Err() == nil && errors.As(err, &ne) && idempotent(req.Method)
 			lastErr = err
-		case resp.Status == http.StatusTooManyRequests || resp.Status == http.StatusServiceUnavailable:
-			retry = true
-			wait = retryAfter(resp.Header)
-			lastErr = parseError(resp.Status, resp.Header, resp.Body)
 		case resp.Status >= 200 && resp.Status < 300:
 			return resp, nil
 		default:
-			return nil, parseError(resp.Status, resp.Header, resp.Body)
+			lastErr = parseError(resp.Status, resp.Header, resp.Body)
+			switch resp.Status {
+			case http.StatusTooManyRequests, http.StatusServiceUnavailable:
+				retry = true
+				wait = retryAfter(resp.Header)
+			case http.StatusGatewayTimeout:
+				retry = idempotent(req.Method)
+				wait = retryAfter(resp.Header)
+			}
+		}
+		if c.cfg.ShouldRetry != nil {
+			retry = c.cfg.ShouldRetry(req, resp, err, retry)
 		}
 		if !retry || attempt >= c.cfg.MaxAttempts {
 			return nil, lastErr
@@ -265,36 +293,81 @@ func JSON(ctx context.Context, d Doer, req *Request, out any) error {
 }
 
 // Call is a generic helper: body (if not nil) is JSON encoded, the response is
-// decoded into out (if not nil).
-func (c *Client) Call(ctx context.Context, method, path string, body, out any) error {
+// decoded into out (if not nil). Options adjust this call only.
+func (c *Client) Call(ctx context.Context, method, path string, body, out any, opts ...Option) error {
+	_, err := c.Send(ctx, method, path, body, out, opts...)
+	return err
+}
+
+// Send is like Call but also returns the response, giving access to the
+// status, headers and ETag.
+func (c *Client) Send(ctx context.Context, method, path string, body, out any, opts ...Option) (*Response, error) {
 	r := NewRequest(method, path)
 	if body != nil {
 		r.WithJSON(body)
 	}
-	return JSON(ctx, c, r, out)
+	r.Apply(opts...)
+	resp, err := c.Do(ctx, r)
+	if err != nil {
+		return nil, err
+	}
+	return resp, resp.JSON(out)
 }
 
 // Get sends a GET request and decodes the response into out.
-func (c *Client) Get(ctx context.Context, path string, out any) error {
-	return c.Call(ctx, http.MethodGet, path, nil, out)
+func (c *Client) Get(ctx context.Context, path string, out any, opts ...Option) error {
+	return c.Call(ctx, http.MethodGet, path, nil, out, opts...)
 }
 
 // Post sends body as JSON in a POST request and decodes the response into out.
-func (c *Client) Post(ctx context.Context, path string, body, out any) error {
-	return c.Call(ctx, http.MethodPost, path, body, out)
+func (c *Client) Post(ctx context.Context, path string, body, out any, opts ...Option) error {
+	return c.Call(ctx, http.MethodPost, path, body, out, opts...)
 }
 
 // Patch sends body as JSON in a PATCH request and decodes the response into out.
-func (c *Client) Patch(ctx context.Context, path string, body, out any) error {
-	return c.Call(ctx, http.MethodPatch, path, body, out)
+func (c *Client) Patch(ctx context.Context, path string, body, out any, opts ...Option) error {
+	return c.Call(ctx, http.MethodPatch, path, body, out, opts...)
 }
 
 // Put sends body as JSON in a PUT request and decodes the response into out.
-func (c *Client) Put(ctx context.Context, path string, body, out any) error {
-	return c.Call(ctx, http.MethodPut, path, body, out)
+func (c *Client) Put(ctx context.Context, path string, body, out any, opts ...Option) error {
+	return c.Call(ctx, http.MethodPut, path, body, out, opts...)
 }
 
 // Delete sends a DELETE request.
-func (c *Client) Delete(ctx context.Context, path string) error {
-	return c.Call(ctx, http.MethodDelete, path, nil, nil)
+func (c *Client) Delete(ctx context.Context, path string, opts ...Option) error {
+	return c.Call(ctx, http.MethodDelete, path, nil, nil, opts...)
+}
+
+// DoHTTP sends a standard library request through the client (auth, retries,
+// error mapping). The request URL may be absolute or, if it has no host,
+// relative to BaseURL. Its body is read fully.
+func (c *Client) DoHTTP(ctx context.Context, r *http.Request) (*Response, error) {
+	req, err := NewRequestFromHTTP(r)
+	if err != nil {
+		return nil, err
+	}
+	return c.Do(ctx, req)
+}
+
+// Call sends a request through d and returns the decoded response as T.
+func Call[T any](ctx context.Context, d Doer, method, path string, body any, opts ...Option) (T, error) {
+	var out T
+	r := NewRequest(method, path)
+	if body != nil {
+		r.WithJSON(body)
+	}
+	r.Apply(opts...)
+	err := JSON(ctx, d, r, &out)
+	return out, err
+}
+
+// Get sends a GET request through d and returns the decoded response as T.
+func Get[T any](ctx context.Context, d Doer, path string, opts ...Option) (T, error) {
+	return Call[T](ctx, d, http.MethodGet, path, nil, opts...)
+}
+
+// Post sends body as JSON through d and returns the decoded response as T.
+func Post[T any](ctx context.Context, d Doer, path string, body any, opts ...Option) (T, error) {
+	return Call[T](ctx, d, http.MethodPost, path, body, opts...)
 }

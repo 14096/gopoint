@@ -3,6 +3,7 @@ package httpx
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"slices"
@@ -80,6 +81,40 @@ func (r *Request) WithJSON(v any) *Request {
 	return r.WithBytes(b, "application/json")
 }
 
+// Apply runs the options against r and returns r.
+func (r *Request) Apply(opts ...Option) *Request {
+	for _, o := range opts {
+		if o != nil {
+			o(r)
+		}
+	}
+	return r
+}
+
+// NewRequestFromHTTP converts a standard library request. The body is read
+// and buffered; the original request is not otherwise modified.
+func NewRequestFromHTTP(hr *http.Request) (*Request, error) {
+	r := &Request{Method: hr.Method, Header: hr.Header.Clone()}
+	u := *hr.URL
+	if u.Host == "" {
+		r.Path = u.Path
+		r.Query = u.Query()
+	} else {
+		r.Query = u.Query()
+		u.RawQuery = ""
+		r.Path = u.String()
+	}
+	if hr.Body != nil {
+		defer hr.Body.Close()
+		b, err := io.ReadAll(hr.Body)
+		if err != nil {
+			return nil, fmt.Errorf("httpx: read body: %w", err)
+		}
+		r.Body = b
+	}
+	return r, nil
+}
+
 func (r *Request) clone() *Request {
 	c := *r
 	c.Header = r.Header.Clone()
@@ -92,6 +127,9 @@ type Response struct {
 	Header http.Header
 	Body   []byte
 }
+
+// ETag returns the ETag response header, or "".
+func (r *Response) ETag() string { return r.Header.Get("ETag") }
 
 // JSON decodes the body into out. Empty bodies are ignored.
 func (r *Response) JSON(out any) error {

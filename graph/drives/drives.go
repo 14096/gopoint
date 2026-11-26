@@ -47,6 +47,10 @@ type Item struct {
 	File *struct {
 		MimeType string `json:"mimeType"`
 	} `json:"file"`
+	// Deleted is set on items removed since the previous Delta call.
+	Deleted *struct {
+		State string `json:"state"`
+	} `json:"deleted"`
 }
 
 // IsFolder reports whether the item is a folder.
@@ -180,4 +184,15 @@ func readChunk(r io.ReaderAt, off, n int64) ([]byte, error) {
 		err = io.ErrUnexpectedEOF
 	}
 	return nil, err
+}
+
+// Delta returns the items changed since deltaLink and the new link to store.
+// With an empty deltaLink it enumerates the whole drive and returns the first
+// link. Deleted items have Item.Deleted set.
+func (s *Service) Delta(ctx context.Context, drive, deltaLink string) ([]Item, string, error) {
+	path := deltaLink
+	if path == "" {
+		path = driveBase(drive) + "/root/delta"
+	}
+	return httpx.Delta[Item](ctx, s.c, httpx.NewRequest("GET", path))
 }

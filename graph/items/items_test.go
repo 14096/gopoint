@@ -3,6 +3,7 @@ package items_test
 import (
 	"context"
 	"net/http"
+	"strings"
 	"testing"
 
 	"github.com/14096/gopoint/graph/items"
@@ -44,5 +45,26 @@ func TestItems(t *testing.T) {
 	}
 	if err := s.Delete(ctx, "s1", "l1", "5"); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestDelta(t *testing.T) {
+	var srvURL string
+	srv := testutil.New(t, func(c testutil.Call, w http.ResponseWriter) {
+		if c.Query.Get("token") != "" {
+			w.Write([]byte(`{"value":[{"id":"3"}],"@odata.deltaLink":"` + srvURL + `/sites/s/lists/l/items/delta?token=n"}`))
+			return
+		}
+		w.Write([]byte(`{"value":[{"id":"1"},{"id":"2"}],"@odata.deltaLink":"` + srvURL + `/sites/s/lists/l/items/delta?token=a"}`))
+	})
+	srvURL = srv.URL
+	svc := items.New(srv.Client(""))
+	got, link, err := svc.Delta(context.Background(), "s", "l", "")
+	if err != nil || len(got) != 2 || !strings.HasSuffix(link, "token=a") {
+		t.Fatal(got, link, err)
+	}
+	got, link, err = svc.Delta(context.Background(), "s", "l", link)
+	if err != nil || len(got) != 1 || !strings.HasSuffix(link, "token=n") {
+		t.Fatal(got, link, err)
 	}
 }

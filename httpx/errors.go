@@ -37,6 +37,10 @@ func IsNotFound(err error) bool {
 	return errors.As(err, &e) && e.Status == http.StatusNotFound
 }
 
+// NewError builds an *Error from a non-2xx response, for callers that receive
+// statuses outside Client.Do (for example $batch sub-responses).
+func NewError(status int, h http.Header, body []byte) *Error { return parseError(status, h, body) }
+
 // parseError understands Graph ({"error":{"code","message":"..."}}), SharePoint
 // verbose ({"error":{"code","message":{"value"}}}) and SharePoint nometadata
 // ({"odata.error":{...}}) bodies.

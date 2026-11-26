@@ -151,3 +151,86 @@ func TestErrorFormats(t *testing.T) {
 		})
 	}
 }
+
+func TestOptionsETagAndGenerics(t *testing.T) {
+	c, _ := newTest(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("If-Match") != "\"1\"" || r.Header.Get("X-A") != "b" || r.URL.Query().Get("$top") != "2" {
+			t.Errorf("%v %s", r.Header, r.URL)
+		}
+		w.Header().Set("ETag", "\"2\"")
+		w.Write([]byte(`{"n":5}`))
+	}, Config{})
+	type out struct{ N int }
+	opts := []Option{WithIfMatch(`"1"`), WithHeader("X-A", "b"), WithOData(ODataQuery{Top: 2})}
+	var o out
+	resp, err := c.Send(context.Background(), "GET", "/x", nil, &o, opts...)
+	if err != nil || resp.ETag() != `"2"` || o.N != 5 {
+		t.Fatal(resp, o, err)
+	}
+	g, err := Get[out](context.Background(), c, "/x", opts...)
+	if err != nil || g.N != 5 {
+		t.Fatal(g, err)
+	}
+}
+
+func TestShouldRetryAndMiddleware(t *testing.T) {
+	var hits, mw atomic.Int32
+	c, _ := newTest(t, func(w http.ResponseWriter, r *http.Request) {
+		if hits.Add(1) < 3 {
+			w.WriteHeader(500)
+			return
+		}
+		w.Write([]byte(`{}`))
+	}, Config{
+		MinBackoff: time.Millisecond, MaxBackoff: time.Millisecond,
+		ShouldRetry: func(_ *Request, resp *Response, _ error, def bool) bool {
+			return def || (resp != nil && resp.Status == 500)
+		},
+		Middleware: []Middleware{func(next DoFunc) DoFunc {
+			return func(ctx context.Context, r *Request) (*Response, error) {
+				mw.Add(1)
+				return next(ctx, r)
+			}
+		}},
+	})
+	if err := c.Get(context.Background(), "/x", nil); err != nil || hits.Load() != 3 || mw.Load() != 1 {
+		t.Fatal(err, hits.Load(), mw.Load())
+	}
+}
+
+func TestDoHTTP(t *testing.T) {
+	c, srv := newTest(t, func(w http.ResponseWriter, r *http.Request) {
+		b, _ := io.ReadAll(r.Body)
+		if r.URL.Path != "/api/p" || r.URL.Query().Get("a") != "1" || string(b) != "hi" {
+			t.Errorf("%s %s", r.URL, b)
+		}
+	}, Config{})
+	hr, _ := http.NewRequest("POST", srv.URL+"/api/p?a=1", strings.NewReader("hi"))
+	if _, err := c.DoHTTP(context.Background(), hr); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestDeltaAndRateLimit(t *testing.T) {
+	var srvURL string
+	c, srv := newTest(t, func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("RateLimit-Remaining", "7")
+		if r.URL.Query().Get("p") == "" {
+			w.Write([]byte(`{"value":[1,2],"@odata.nextLink":"` + srvURL + `/api/d?p=2"}`))
+			return
+		}
+		w.Write([]byte(`{"value":[3],"@odata.deltaLink":"` + srvURL + `/api/d?token=x"}`))
+	}, Config{})
+	srvURL = srv.URL
+	got, link, err := Delta[int](context.Background(), c, NewRequest("GET", "/d"))
+	if err != nil || len(got) != 3 || link != srv.URL+"/api/d?token=x" {
+		t.Fatal(got, link, err)
+	}
+	resp, _ := c.Do(context.Background(), NewRequest("GET", "/d"))
+	if rl, ok := resp.RateLimit(); !ok || rl.Remaining != 7 {
+		t.Fatal(rl, ok)
+	}
+	if ISVUserAgent("Acme/Co", "App", "1.0") != "ISV|Acme-Co|App/1.0" {
+		t.Error("ua")
+	}
+}
