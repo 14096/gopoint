@@ -1,6 +1,5 @@
 # gopoint
 
-[![CI](https://github.com/14096/gopoint/actions/workflows/ci.yml/badge.svg)](https://github.com/14096/gopoint/actions/workflows/ci.yml)
 [![Go Reference](https://pkg.go.dev/badge/github.com/14096/gopoint.svg)](https://pkg.go.dev/github.com/14096/gopoint)
 
 A Go SDK for SharePoint REST and Microsoft Graph.
@@ -79,17 +78,24 @@ sp, _ := sharepoint.New("https://contoso.sharepoint.com/sites/team", cred, share
 items, _ := sp.Items().All(ctx, spx.ByTitle("Projects"), httpx.ODataQuery{Filter: "Status eq 'Open'"})
 ```
 
-| Accessor         | Package                   | Operations                                                  |
-| ---------------- | ------------------------- | ----------------------------------------------------------- |
-| `Web()`          | `sharepoint/web`          | get, subwebs, create subweb                                 |
-| `Lists()`        | `sharepoint/lists`        | get, all, create, update, delete                            |
-| `Fields()`       | `sharepoint/fields`       | list, get, create, update, delete (web or list)             |
-| `ContentTypes()` | `sharepoint/contenttypes` | list, get, create, delete (web or list)                     |
-| `Items()`        | `sharepoint/items`        | get, query (OData, paged), create, update, delete           |
-| `Files()`        | `sharepoint/files`        | list files/folders, create folder, upload, download, delete |
-
-Lists are addressed with `spx.ByTitle` / `spx.ByID`; operations valid on a web or a list take an
-`spx.Scope` (`spx.Web` or a `ListRef`). Write calls automatically carry a cached `X-RequestDigest`.
+| Accessor         | Package                   | Operations                                                                                       |
+| ---------------- | ------------------------- | ------------------------------------------------------------------------------------------------ |
+| `Web()`          | `sharepoint/web`          | get, subwebs, create subweb                                                                      |
+| `Lists()`        | `sharepoint/lists`        | get, all, create, update, delete                                                                 |
+| `Fields()`       | `sharepoint/fields`       | list, get, create, update, delete (web or list)                                                  |
+| `ContentTypes()` | `sharepoint/contenttypes` | list, get, create, delete (web or list)                                                          |
+| `Items()`        | `sharepoint/items`        | get, query (OData, paged), create, update, delete                                                |
+| `Files()`        | `sharepoint/files`        | list files/folders, create folder, upload, download, delete                                      |
+| `Pages()`        | `sharepoint/pages`        | modern site pages: list, get, create, update (draft), publish, delete                            |
+| `Folders()`      | `sharepoint/folders`      | get, exists, children, create, rename, move, delete, recycle                                     |
+| `Navigation()`   | `sharepoint/navigation`   | quick launch / top bar nodes: list, get, add, add child, update, delete                          |
+| `Permissions()`  | `sharepoint/permissions`  | role assignments, grant/revoke, break/reset inheritance, effective permissions, role definitions |
+| `RecycleBin()`   | `sharepoint/recyclebin`   | web / site bins: list, get, restore, delete, second stage, restore all, empty                    |
+| `Users()`        | `sharepoint/users`        | site users, ensure user, site groups, group membership                                           |
+| `Search()`       | `sharepoint/search`       | query (paged iterator), suggest                                                                  |
+| `Sharing()`      | `sharepoint/sharing`      | create/delete sharing links, invite people                                                       |
+| `Views()`        | `sharepoint/views`        | list views: all, get, by title, create, update, delete, view fields (add, remove, move, set)     |
+| `HubSites()`     | `sharepoint/hubsites`     | list, get, current, register, unregister, update, join, leave                                    |
 
 ## Microsoft Graph
 
@@ -106,15 +112,17 @@ for it, err := range g.Items().Iter(ctx, site.ID, "Projects", httpx.ODataQuery{T
 }
 ```
 
-| Accessor         | Package              | Operations                                                                                    |
-| ---------------- | -------------------- | --------------------------------------------------------------------------------------------- |
-| `Sites()`        | `graph/sites`        | root, get, by path, search, subsites                                                          |
-| `Lists()`        | `graph/lists`        | iter, all, get, create, delete                                                                |
-| `Columns()`      | `graph/columns`      | list (site or list), create, delete                                                           |
-| `Items()`        | `graph/items`        | iter, all, get, create, update, delete (fields expanded by default)                           |
-| `ContentTypes()` | `graph/contenttypes` | list (site or list), get                                                                      |
-| `Drives()`       | `graph/drives`       | for site, get, children, get item (by id/path), download, upload (simple + resumable), delete |
-
-## Documentation
-
-The API reference is on [pkg.go.dev](https://pkg.go.dev/github.com/14096/gopoint).
+| Accessor         | Package              | Operations                                                          |
+| ---------------- | -------------------- | ------------------------------------------------------------------- |
+| `Sites()`        | `graph/sites`        | root, get, by path, search, subsites                                |
+| `Lists()`        | `graph/lists`        | iter, all, get, create, delete                                      |
+| `Columns()`      | `graph/columns`      | list (site or list), create, delete                                 |
+| `Items()`        | `graph/items`        | iter, all, get, create, update, delete (fields expanded by default) |
+| `ContentTypes()` | `graph/contenttypes` | list (site or list), get                                            |
+| `Pages()`        | `graph/pages`        | site pages: iter, get, create, update, publish, delete              |
+| `Folders()`      | `graph/folders`      | get, children, create, rename, move, copy, delete, permanent delete |
+| `Permissions()`  | `graph/permissions`  | item permissions (list, get, update, delete), site app permissions  |
+| `RecycleBin()`   | `graph/recyclebin`   | iter, restore, delete (**beta endpoint only**)                      |
+| `Users()`        | `graph/users`        | me, users, groups, membership                                       |
+| `Search()`       | `graph/search`       | Microsoft Search query (paged iterator)                             |
+| `Sharing()`      | `graph/sharing`      | create link, invite, unshare, resolve sharing URL                   |

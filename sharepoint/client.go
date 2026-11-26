@@ -16,8 +16,18 @@ import (
 	"github.com/14096/gopoint/sharepoint/contenttypes"
 	"github.com/14096/gopoint/sharepoint/fields"
 	"github.com/14096/gopoint/sharepoint/files"
+	"github.com/14096/gopoint/sharepoint/folders"
+	"github.com/14096/gopoint/sharepoint/hubsites"
 	"github.com/14096/gopoint/sharepoint/items"
 	"github.com/14096/gopoint/sharepoint/lists"
+	"github.com/14096/gopoint/sharepoint/navigation"
+	"github.com/14096/gopoint/sharepoint/pages"
+	"github.com/14096/gopoint/sharepoint/permissions"
+	"github.com/14096/gopoint/sharepoint/recyclebin"
+	"github.com/14096/gopoint/sharepoint/search"
+	"github.com/14096/gopoint/sharepoint/sharing"
+	"github.com/14096/gopoint/sharepoint/users"
+	"github.com/14096/gopoint/sharepoint/views"
 	"github.com/14096/gopoint/sharepoint/web"
 )
 
@@ -94,6 +104,36 @@ func (c *Client) Items() *items.Service { return items.New(c.raw) }
 
 // Files returns the files service.
 func (c *Client) Files() *files.Service { return files.New(c.raw) }
+
+// Pages returns the pages service.
+func (c *Client) Pages() *pages.Service { return pages.New(c.raw) }
+
+// Folders returns the folders service.
+func (c *Client) Folders() *folders.Service { return folders.New(c.raw) }
+
+// Navigation returns the navigation service.
+func (c *Client) Navigation() *navigation.Service { return navigation.New(c.raw) }
+
+// Permissions returns the permissions service.
+func (c *Client) Permissions() *permissions.Service { return permissions.New(c.raw) }
+
+// RecycleBin returns the recyclebin service.
+func (c *Client) RecycleBin() *recyclebin.Service { return recyclebin.New(c.raw) }
+
+// Users returns the users service.
+func (c *Client) Users() *users.Service { return users.New(c.raw) }
+
+// Search returns the search service.
+func (c *Client) Search() *search.Service { return search.New(c.raw) }
+
+// Sharing returns the sharing service.
+func (c *Client) Sharing() *sharing.Service { return sharing.New(c.raw) }
+
+// Views returns the list views service.
+func (c *Client) Views() *views.Service { return views.New(c.raw) }
+
+// HubSites returns the hub sites service.
+func (c *Client) HubSites() *hubsites.Service { return hubsites.New(c.raw) }
 
 type digestCache struct {
 	mu      sync.Mutex

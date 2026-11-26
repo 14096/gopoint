@@ -5,6 +5,7 @@ package spx
 import (
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 
 	"github.com/14096/gopoint/httpx"
@@ -80,4 +81,23 @@ func Merge(path string, body any) *httpx.Request {
 // Remove builds a delete (POST + X-HTTP-Method: DELETE).
 func Remove(path string) *httpx.Request {
 	return Post(path, nil).SetHeader("X-HTTP-Method", "DELETE").SetHeader("IF-MATCH", "*")
+}
+
+type pathScope string
+
+func (p pathScope) Path() string { return string(p) }
+
+// ItemRef is the Scope of a list item (by numeric ID); use it for item-level permissions and sharing.
+func ItemRef(l ListRef, id int) Scope {
+	return pathScope(l.Path() + "/items(" + strconv.Itoa(id) + ")")
+}
+
+// FileItem is the Scope of the list item behind a file (server-relative URL).
+func FileItem(fileURL string) Scope {
+	return pathScope("web/GetFileByServerRelativeUrl(" + QuotePath(fileURL) + ")/ListItemAllFields")
+}
+
+// FolderItem is the Scope of the list item behind a folder (server-relative URL).
+func FolderItem(folderURL string) Scope {
+	return pathScope("web/GetFolderByServerRelativeUrl(" + QuotePath(folderURL) + ")/ListItemAllFields")
 }

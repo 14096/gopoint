@@ -12,9 +12,16 @@ import (
 	"github.com/14096/gopoint/graph/columns"
 	"github.com/14096/gopoint/graph/contenttypes"
 	"github.com/14096/gopoint/graph/drives"
+	"github.com/14096/gopoint/graph/folders"
 	"github.com/14096/gopoint/graph/items"
 	"github.com/14096/gopoint/graph/lists"
+	"github.com/14096/gopoint/graph/pages"
+	"github.com/14096/gopoint/graph/permissions"
+	"github.com/14096/gopoint/graph/recyclebin"
+	"github.com/14096/gopoint/graph/search"
+	"github.com/14096/gopoint/graph/sharing"
 	"github.com/14096/gopoint/graph/sites"
+	"github.com/14096/gopoint/graph/users"
 	"github.com/14096/gopoint/httpx"
 )
 
@@ -86,3 +93,24 @@ func (c *Client) ContentTypes() *contenttypes.Service { return contenttypes.New(
 
 // Drives returns the drives service.
 func (c *Client) Drives() *drives.Service { return drives.New(c.raw) }
+
+// Pages returns the pages service.
+func (c *Client) Pages() *pages.Service { return pages.New(c.raw) }
+
+// Folders returns the folders service.
+func (c *Client) Folders() *folders.Service { return folders.New(c.raw) }
+
+// Permissions returns the permissions service.
+func (c *Client) Permissions() *permissions.Service { return permissions.New(c.raw) }
+
+// RecycleBin returns the recyclebin service.
+func (c *Client) RecycleBin() *recyclebin.Service { return recyclebin.New(c.raw) }
+
+// Users returns the users service.
+func (c *Client) Users() *users.Service { return users.New(c.raw) }
+
+// Search returns the search service.
+func (c *Client) Search() *search.Service { return search.New(c.raw) }
+
+// Sharing returns the sharing service.
+func (c *Client) Sharing() *sharing.Service { return sharing.New(c.raw) }
